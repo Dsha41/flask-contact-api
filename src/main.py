@@ -77,10 +77,55 @@ def create_contact():
         relation = RelationContactGroup(contact_id=new_contact.id, group_id=group_id)
         db.session.add(relation)
         db.session.commit()
-    
-    
+        return jsonify(new_contact.serialize()), 200
 
-    return jsonify(new_contact.serialize()), 200
+@app.route('/contact/<int:contact_id>', methods=['GET', 'PUT', 'DELETE'])
+def process_contact(contact_id):
+    '''
+        GET: Gets a contact by its id
+        PUT: Modifies a contact by its id. For now it does not modify the groups
+        DELETE: Deletes a contact by its id 
+    '''
+
+    contact = Contact.query.get(contact_id)
+
+    if contact == None:
+        return jsonify({"msg": "Contact not found"}), 404
+
+    if request.method == 'GET':
+        return jsonify(contact.serialize()), 200
+    elif request.method == 'PUT':
+        try: 
+            data = json.loads(request.data)
+            if 'full_name' in data:
+                contact.full_name = data['full_name']
+            if 'email' in data:
+                contact.email = data['email']
+            if 'address' in data: 
+                contact.address = data['address']
+            if 'phone' in data:
+                contact.phone = data['phone']
+        except:
+            raise APIException('Some data failed', status_code=400)
+        db.session.add(contact)
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+        return jsonify(contact.serialize()), 200
+
+
+    elif request.method == 'DELETE':
+        db.session.delete(contact)
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+        print(contact)
+        return jsonify({"deleted": {
+            "id": contact.id,
+            "full_name": contact.full_name
+        }}), 200
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
