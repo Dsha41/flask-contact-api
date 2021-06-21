@@ -127,6 +127,85 @@ def process_contact(contact_id):
             "full_name": contact.full_name
         }}), 200
 
+
+@app.route('/group', methods=['GET'])
+def get_all_groups():
+    '''
+        Gets all the groups of the database 
+    '''
+
+    groups = Group.query.all()
+    return jsonify([group.serialize() for group in groups]), 200
+
+
+@app.route('/group', methods=['POST'])
+def create_group():
+    '''
+        Creates a group and then makes the relationship between that
+        group and all the contacts ids listed
+    '''
+    # Creating the group
+    data = json.loads(request.data)
+    group = Group(
+        name=data["name"]
+    )
+
+    db.session.add(group)
+    try: 
+        db.session.commit()
+    except:
+        db.session.rollback()
+        return jsonify({"msg": "Error creating the group"}), 400
+
+    # Creating the relations
+    for contact_id in data["contacts"]:
+        relation = RelationContactGroup(contact_id=contact_id, group_id=group.id)
+        db.session.add(relation)
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+            print("Error creating the relations")
+
+@app.route('/group/<int:group_id>', methods=['GET', 'PUT', 'DELETE'])
+def process_group(group_id):
+    '''
+        GET: Gets a group by its id
+        PUT: Modifies a group by its id. Only the name
+        DELETE: Deletes a group by its id 
+    '''
+    group = Group.query.get(group_id)
+
+    if group == None:
+        return jsonify({"msg": "Group not found"}), 404
+
+    if request.method == 'GET':
+        return jsonify(group.serialize()), 200
+    elif request.method == 'PUT':
+        try: 
+            data = json.loads(request.data)
+            if 'name' in data:
+                group.name = data['name']
+        except:
+            raise APIException('Some data failed', status_code=400)
+        db.session.add(group)
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+        return jsonify(group.serialize()), 200
+
+    elif request.method == 'DELETE':
+        db.session.delete(group)
+        db.session.commit()
+        return jsonify({"deleted": {
+            "id": group.id,
+            "name": group.name
+        }}), 200
+    
+
+    return jsonify(group.serialize()), 200
+
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 3000))
