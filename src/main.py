@@ -2,13 +2,13 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, url_for, json
 from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, Contact, Group, RelationContactGroup
 #from models import Person
 
 app = Flask(__name__)
@@ -38,6 +38,49 @@ def handle_hello():
     }
 
     return jsonify(response_body), 200
+
+@app.route('/contact/all', methods=['GET'])
+def get_all_contacts():
+    '''
+        Get all the contacts form the database
+    '''
+
+    all_contacts = Contact.query.all()
+
+    return jsonify([x.serialize() for x in all_contacts]), 200
+
+@app.route('/contact', methods=['POST'])
+def create_contact():
+    '''
+        Creates a contact from the data of the request,
+        the email must be unique, if not returns a 400
+        after the contact is create its create the relation with the groups
+    '''
+    data = json.loads(request.data)
+    # Creating the contact
+    new_contact = Contact(
+        full_name=data["full_name"],
+        email=data["email"],
+        address=data["address"],
+        phone=data["phone"],
+    )
+
+    db.session.add(new_contact)
+    try:
+        db.session.commit()
+    except:
+        db.session.rollback()
+        return jsonify({"msg": "Email must be unique"}), 400
+
+    # Creating the relation
+    for group_id in data["groups"]:
+        relation = RelationContactGroup(contact_id=new_contact.id, group_id=group_id)
+        db.session.add(relation)
+        db.session.commit()
+    
+    
+
+    return jsonify(new_contact.serialize()), 200
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
